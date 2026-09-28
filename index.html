@@ -9,7 +9,7 @@
 </head>
 <body>
 <header class="topbar">
-  <div class="brand">📋 PermitPilot <span class="ai">AI</span></div>
+  <div class="brand">PermitPilot <span class="ai">AI</span></div>
   <div class="tagline">Know which permits your project needs — then track every application to approval.</div>
 </header>
 
@@ -33,10 +33,10 @@
       </label>
     </div>
     <div class="row">
-      <button type="button" id="newProject" class="primary">＋ New project</button>
-      <button type="button" id="saveProject" class="ghost">💾 Save name</button>
-      <button type="button" id="deleteProject" class="ghost">🗑 Delete</button>
-      <button type="button" id="sampleProject" class="ghost">✨ Load sample project</button>
+      <button type="button" id="newProject" class="primary">+ New project</button>
+      <button type="button" id="saveProject" class="ghost">Save name</button>
+      <button type="button" id="deleteProject" class="ghost">Delete</button>
+      <button type="button" id="sampleProject" class="ghost">Load sample project</button>
       <span id="projectMsg" class="ok"></span>
     </div>
   </section>
@@ -56,7 +56,7 @@
       <textarea id="projectDesc" placeholder="e.g. Tear out the kitchen to the studs, move the sink to the island, add recessed lighting." maxlength="600"></textarea>
     </label>
     <div class="row">
-      <button type="button" id="checkPermits" class="primary">🔍 Check permits</button>
+      <button type="button" id="checkPermits" class="primary">Check permits</button>
       <span id="checkMsg" class="muted"></span>
     </div>
   </section>
@@ -83,8 +83,8 @@
     <p class="muted">Draft a plain-language cover note to attach to a permit application. Works best with your own OpenAI key (Settings below) — fully optional.</p>
     <div class="cover-note">
       <div class="row" style="margin-top:0">
-        <button type="button" id="draftNote" class="primary small">✍️ Draft cover note</button>
-        <button type="button" id="copyNote" class="ghost small">📋 Copy</button>
+        <button type="button" id="draftNote" class="primary small">Draft cover note</button>
+        <button type="button" id="copyNote" class="ghost small">Copy</button>
         <span id="noteMsg" class="muted"></span>
       </div>
       <textarea id="coverNote" style="margin-top:10px" placeholder="Your cover note will appear here — edit it freely before printing or attaching."></textarea>
@@ -93,7 +93,7 @@
 
   <!-- Settings -->
   <section class="card" id="settingsSection">
-    <h2>⚙️ Settings</h2>
+    <h2>Settings</h2>
     <label>OpenAI API key <span class="hint">(optional — only used to draft the cover note above)</span>
       <input type="password" id="openaiKey" placeholder="sk-…" autocomplete="off">
     </label>
