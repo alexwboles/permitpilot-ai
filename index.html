@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PermitPilot AI — which permits does your project need?</title>
+<meta name="description" content="Permit requirement checker and application tracker for contractors and homeowners. Free, local-first, no account needed.">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<header class="topbar">
+  <div class="brand">📋 PermitPilot <span class="ai">AI</span></div>
+  <div class="tagline">Know which permits your project needs — then track every application to approval.</div>
+</header>
+
+<div class="disclaimer-banner" role="note">
+  <span class="badge">Notice</span>
+  <strong>General guidance only — not legal advice.</strong>
+  Permit rules vary by city/county. Always verify with your local building department.
+</div>
+
+<main>
+  <!-- Projects -->
+  <section class="card" id="projectsSection">
+    <h2>1 · Your projects</h2>
+    <p class="muted">Projects are saved in this browser only — nothing leaves your device.</p>
+    <div class="grid">
+      <label>Active project
+        <select id="projectSelect"></select>
+      </label>
+      <label>Project name
+        <input type="text" id="projectName" placeholder="e.g. Maple St. kitchen remodel" maxlength="80">
+      </label>
+    </div>
+    <div class="row">
+      <button type="button" id="newProject" class="primary">＋ New project</button>
+      <button type="button" id="saveProject" class="ghost">💾 Save name</button>
+      <button type="button" id="deleteProject" class="ghost">🗑 Delete</button>
+      <button type="button" id="sampleProject" class="ghost">✨ Load sample project</button>
+      <span id="projectMsg" class="ok"></span>
+    </div>
+  </section>
+
+  <!-- Project details -->
+  <section class="card" id="detailsSection">
+    <h2>2 · Describe the project</h2>
+    <div class="grid">
+      <label>Job type
+        <select id="jobType"></select>
+      </label>
+      <label>Project location type
+        <select id="locationType"></select>
+      </label>
+    </div>
+    <label style="margin-top:12px">Brief project description
+      <textarea id="projectDesc" placeholder="e.g. Tear out the kitchen to the studs, move the sink to the island, add recessed lighting." maxlength="600"></textarea>
+    </label>
+    <div class="row">
+      <button type="button" id="checkPermits" class="primary">🔍 Check permits</button>
+      <span id="checkMsg" class="muted"></span>
+    </div>
+  </section>
+
+  <!-- Results -->
+  <section class="card" id="resultsSection" style="display:none">
+    <h2>3 · Permits for this project</h2>
+    <p class="muted">Typical requirements based on similar projects. <strong>Always confirm with your local building department before starting work.</strong></p>
+    <div id="alerts" class="alerts"></div>
+    <div>
+      <div class="muted" id="progressLabel"></div>
+      <div class="progress"><div id="progressBar"></div></div>
+    </div>
+    <div id="permitList"></div>
+    <div class="fee-box">
+      <div>
+        <div class="muted">Estimated permit fees</div>
+        <div class="total" id="feeTotal">—</div>
+        <div class="muted" id="feeCount" style="font-size:.82rem"></div>
+      </div>
+      <div class="muted" style="font-size:.85rem; max-width:280px">Typical ranges from similar projects — your city sets the real fees. Adjust any fee above and the totals update.</div>
+    </div>
+    <h3>Cover note for your application</h3>
+    <p class="muted">Draft a plain-language cover note to attach to a permit application. Works best with your own OpenAI key (Settings below) — fully optional.</p>
+    <div class="cover-note">
+      <div class="row" style="margin-top:0">
+        <button type="button" id="draftNote" class="primary small">✍️ Draft cover note</button>
+        <button type="button" id="copyNote" class="ghost small">📋 Copy</button>
+        <span id="noteMsg" class="muted"></span>
+      </div>
+      <textarea id="coverNote" style="margin-top:10px" placeholder="Your cover note will appear here — edit it freely before printing or attaching."></textarea>
+    </div>
+  </section>
+
+  <!-- Settings -->
+  <section class="card" id="settingsSection">
+    <h2>⚙️ Settings</h2>
+    <label>OpenAI API key <span class="hint">(optional — only used to draft the cover note above)</span>
+      <input type="password" id="openaiKey" placeholder="sk-…" autocomplete="off">
+    </label>
+    <div class="row">
+      <button type="button" id="saveKey" class="primary small">Save key</button>
+      <button type="button" id="clearKey" class="ghost small">Remove key</button>
+      <span id="keyMsg" class="ok"></span>
+    </div>
+    <p class="settings-note">Your key is stored in this browser's localStorage and sent only to OpenAI's API when you draft a note. It is never required — PermitPilot works 100% without it.</p>
+  </section>
+
+  <footer>
+    <div class="disc"><strong>Disclaimer:</strong> General guidance only — not legal advice. Permit rules vary by city/county. Always verify with your local building department.</div>
+    <div class="center">PermitPilot AI runs entirely in your browser — no account, no tracking, no data leaves this device.</div>
+  </footer>
+</main>
+
+<script src="js/permits.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
