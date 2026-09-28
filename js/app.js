@@ -127,7 +127,8 @@
       if (!r.st.expiryDate || status === 'ok') return;
       var div = document.createElement('div');
       div.className = 'alert ' + status;
-      div.textContent = (status === 'expired' ? '🔴 ' : '🟡 ') + r.def.name + ' ' + PP.expiryText(r.st.expiryDate) + '.';
+      var flag = status === 'expired' ? 'expired' : 'expiring';
+      div.innerHTML = '<span class="flag">' + flag + '</span><span>' + esc(r.def.name) + ' ' + esc(PP.expiryText(r.st.expiryDate)) + '.</span>';
       box.appendChild(div);
     });
   }
@@ -171,8 +172,8 @@
         ? ' <span class="expiry-flag ' + expStatus + '">' + esc(PP.expiryText(st.expiryDate)) + '</span>'
         : '';
 
-      var head = '<div class="permit-head"><h3>' + esc(def.name) + '</h3>' +
-        '<span class="badge ' + res.needed + '">' + PP.neededLabel(res.needed) + '</span></div>' +
+      var head = '<div class="permit-head"><span class="fileno">FILE ' + esc(res.permitId.toUpperCase()) + '</span><h3>' + esc(def.name) + '</h3>' +
+        '<span class="stamp ' + res.needed + '">' + esc(PP.neededLabel(res.needed)) + '</span></div>' +
         '<p class="muted" style="margin:4px 0">' + esc(def.description) + '</p>' +
         '<p class="permit-reason">' + esc(res.reason) + '</p>' +
         '<div class="permit-meta"><span>Typical fee: ' + money(def.typicalFeeLow) + '–' + money(def.typicalFeeHigh) + '</span>' +
@@ -185,7 +186,7 @@
         '<button type="button" class="ghost small" data-act="reset">Reset status</button></div>';
 
       var docs = PP.documentsFor(res.permitId);
-      var docsHtml = '<details class="docs"><summary>📎 Document checklist (<span data-docsdone>' +
+      var docsHtml = '<details class="docs"><summary>Document checklist (<span data-docsdone>' +
         docsDoneCount(st, docs) + '</span>/' + docs.length + ')</summary><ul>' +
         docs.map(function (d, i) {
           var done = !!st.docs[i];

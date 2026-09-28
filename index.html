@@ -9,8 +9,16 @@
 </head>
 <body>
 <header class="topbar">
-  <div class="brand">PermitPilot <span class="ai">AI</span></div>
-  <div class="tagline">Know which permits your project needs — then track every application to approval.</div>
+  <div class="topbar-inner">
+    <div class="seal" aria-hidden="true">
+      <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M9 13h6M9 17h6"/></svg>
+    </div>
+    <div>
+      <div class="kicker">Building dept · Form PP-01</div>
+      <h1 class="brand">PermitPilot <span class="ai">AI</span></h1>
+      <p class="tagline">Know which permits your project needs — then track every application to approval.</p>
+    </div>
+  </div>
 </header>
 
 <div class="disclaimer-banner" role="note">
@@ -19,10 +27,11 @@
   Permit rules vary by city/county. Always verify with your local building department.
 </div>
 
-<main>
+<main class="wrap">
   <!-- Projects -->
-  <section class="card" id="projectsSection">
-    <h2>1 · Your projects</h2>
+  <section class="card dossier" id="projectsSection">
+    <div class="folder-tab">File 1</div>
+    <h2>Your projects</h2>
     <p class="muted">Projects are saved in this browser only — nothing leaves your device.</p>
     <div class="grid">
       <label>Active project
@@ -42,8 +51,9 @@
   </section>
 
   <!-- Project details -->
-  <section class="card" id="detailsSection">
-    <h2>2 · Describe the project</h2>
+  <section class="card dossier" id="detailsSection">
+    <div class="folder-tab">File 2</div>
+    <h2>Describe the project</h2>
     <div class="grid">
       <label>Job type
         <select id="jobType"></select>
@@ -52,7 +62,7 @@
         <select id="locationType"></select>
       </label>
     </div>
-    <label style="margin-top:12px">Brief project description
+    <label class="block-label">Brief project description
       <textarea id="projectDesc" placeholder="e.g. Tear out the kitchen to the studs, move the sink to the island, add recessed lighting." maxlength="600"></textarea>
     </label>
     <div class="row">
@@ -62,11 +72,12 @@
   </section>
 
   <!-- Results -->
-  <section class="card" id="resultsSection" style="display:none">
-    <h2>3 · Permits for this project</h2>
+  <section class="card dossier" id="resultsSection" style="display:none">
+    <div class="folder-tab">File 3</div>
+    <h2>Permits for this project</h2>
     <p class="muted">Typical requirements based on similar projects. <strong>Always confirm with your local building department before starting work.</strong></p>
     <div id="alerts" class="alerts"></div>
-    <div>
+    <div class="progress-wrap">
       <div class="muted" id="progressLabel"></div>
       <div class="progress"><div id="progressBar"></div></div>
     </div>
@@ -77,7 +88,7 @@
         <div class="total" id="feeTotal">—</div>
         <div class="muted" id="feeCount" style="font-size:.82rem"></div>
       </div>
-      <div class="muted" style="font-size:.85rem; max-width:280px">Typical ranges from similar projects — your city sets the real fees. Adjust any fee above and the totals update.</div>
+      <div class="muted fee-note">Typical ranges from similar projects — your city sets the real fees. Adjust any fee above and the totals update.</div>
     </div>
     <h3>Cover note for your application</h3>
     <p class="muted">Draft a plain-language cover note to attach to a permit application. Works best with your own OpenAI key (Settings below) — fully optional.</p>
@@ -87,14 +98,15 @@
         <button type="button" id="copyNote" class="ghost small">Copy</button>
         <span id="noteMsg" class="muted"></span>
       </div>
-      <textarea id="coverNote" style="margin-top:10px" placeholder="Your cover note will appear here — edit it freely before printing or attaching."></textarea>
+      <textarea id="coverNote" class="note-area" placeholder="Your cover note will appear here — edit it freely before printing or attaching."></textarea>
     </div>
   </section>
 
   <!-- Settings -->
-  <section class="card" id="settingsSection">
+  <section class="card dossier" id="settingsSection">
+    <div class="folder-tab">File 4</div>
     <h2>Settings</h2>
-    <label>OpenAI API key <span class="hint">(optional — only used to draft the cover note above)</span>
+    <label class="block-label">OpenAI API key <span class="hint">(optional — only used to draft the cover note above)</span>
       <input type="password" id="openaiKey" placeholder="sk-…" autocomplete="off">
     </label>
     <div class="row">
