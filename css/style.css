@@ -127,6 +127,14 @@ input[type="date"] { font-family: var(--mono); font-size: .88rem; }
 .alert.expired .flag { background: var(--bad); }
 .alert.soon { background: #fdf6e3; border-color: #e8d9a8; color: #6b5518; }
 .alert.soon .flag { background: var(--warn); }
+.alert.next { background: #eef4e4; border-color: #c9d8ae; color: #3d521f; margin: .8rem 0; }
+.alert.next .flag { background: var(--good, #4d7c0f); }
+.apply-flag {
+  font-size: .78rem; font-weight: 700; color: #3d521f; background: #eef4e4;
+  border: 1px solid #c9d8ae; border-radius: 0; padding: .15rem .55rem; white-space: nowrap;
+}
+.apply-flag.late { color: #8c2b2b; background: #fbecec; border-color: #eec3c3; }
+.row.toolbar { margin: .9rem 0; align-items: center; }
 
 /* ---------- progress ---------- */
 .progress-wrap { margin: 1rem 0; }

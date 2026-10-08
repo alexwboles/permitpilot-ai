@@ -37,12 +37,15 @@
       jobType: PP.JOB_TYPES[0].id,
       locationType: PP.LOCATION_TYPES[0].id,
       description: '',
+      startDate: '',   // target project start date (ISO) — drives apply-by dates
       createdAt: new Date().toISOString().slice(0, 10),
       checked: false,
       permits: {},   // permitId -> state
       coverNote: ''
     };
   }
+
+  var permitQuery = '', permitNeeded = '';
 
   function ensurePermitState(project, permitId, needed, reason) {
     var st = project.permits[permitId] || {};
@@ -107,6 +110,7 @@
     jt.value = proj.jobType;
     lt.value = proj.locationType;
     $('projectDesc').value = proj.description || '';
+    $('projectStart').value = proj.startDate || '';
   }
 
   // ---------- results ----------
@@ -156,11 +160,13 @@
     return html + '</div>';
   }
 
-  function renderPermits(proj) {
+  function renderPermits(proj, results) {
     var list = $('permitList');
     list.innerHTML = '';
-    var results = PP.checkPermits({ jobType: proj.jobType, locationType: proj.locationType });
-    results.forEach(function (res) {
+    results = results || PP.checkPermits({ jobType: proj.jobType, locationType: proj.locationType });
+    var visible = PP.filterPermits(results, permitQuery, permitNeeded);
+    var hidden = results.length - visible.length;
+    visible.forEach(function (res) {
       var def = PP.permitById(res.permitId);
       var st = ensurePermitState(proj, res.permitId, res.needed, res.reason);
       var card = document.createElement('div');
@@ -172,12 +178,19 @@
         ? ' <span class="expiry-flag ' + expStatus + '">' + esc(PP.expiryText(st.expiryDate)) + '</span>'
         : '';
 
+      var applyFlag = '';
+      if (proj.startDate && res.needed !== 'unlikely') {
+        var abText = PP.applyByText(res.permitId, proj.startDate);
+        var abDays = PP.applyByDaysLeft(res.permitId, proj.startDate);
+        if (abText) applyFlag = ' <span class="apply-flag' + (abDays !== null && abDays < 0 ? ' late' : '') + '">' + esc(abText) + '</span>';
+      }
+
       var head = '<div class="permit-head"><span class="fileno">FILE ' + esc(res.permitId.toUpperCase()) + '</span><h3>' + esc(def.name) + '</h3>' +
         '<span class="stamp ' + res.needed + '">' + esc(PP.neededLabel(res.needed)) + '</span></div>' +
         '<p class="muted" style="margin:4px 0">' + esc(def.description) + '</p>' +
         '<p class="permit-reason">' + esc(res.reason) + '</p>' +
         '<div class="permit-meta"><span>Typical fee: ' + money(def.typicalFeeLow) + '–' + money(def.typicalFeeHigh) + '</span>' +
-        '<span>Valid ~' + def.validityDays + ' days once issued</span>' + expFlag + '</div>';
+        '<span>Valid ~' + def.validityDays + ' days once issued</span>' + expFlag + applyFlag + '</div>';
 
       var pipeline = pipelineHtml(st) +
         '<div class="row" style="margin-top:8px">' +
@@ -198,11 +211,20 @@
         '<label>Fee high ($) <input type="number" min="0" data-fee="feeHigh" value="' + Number(st.feeHigh) + '"></label></div>';
 
       var expiry = '<label style="margin-top:8px;font-size:.86rem">Permit expiry date <span class="hint">Set the date your permit expires — the dashboard flags it.</span>' +
-        '<input type="date" data-expiry value="' + esc(st.expiryDate) + '"></label>';
+        '<input type="date" data-expiry value="' + esc(st.expiryDate) + '"></label>' +
+        (st.status === 'approved' && st.approvedDate
+          ? '<div style="margin-top:6px"><button type="button" class="ghost small" data-act="autoexpiry">Set expiry from approval date (' + esc(st.approvedDate) + ' + ' + def.validityDays + ' days)</button></div>'
+          : '');
 
       card.innerHTML = head + pipeline + docsHtml + fees + expiry;
       list.appendChild(card);
     });
+    if (hidden > 0) {
+      var note = document.createElement('p');
+      note.className = 'muted';
+      note.textContent = hidden + ' permit' + (hidden === 1 ? '' : 's') + ' hidden by the current filter.';
+      list.appendChild(note);
+    }
     renderAlerts(proj);
     renderProgress(proj);
     renderFees(proj);
@@ -229,7 +251,10 @@
     var proj = activeProject();
     $('resultsSection').style.display = proj && proj.checked ? 'block' : 'none';
     if (proj && proj.checked) {
-      renderPermits(proj);
+      var results = PP.checkPermits({ jobType: proj.jobType, locationType: proj.locationType });
+      var next = PP.nextProjectAction(results, proj.permits);
+      $('nextAction').innerHTML = '<span class="flag">Next</span><span>' + esc(next) + '</span>';
+      renderPermits(proj, results);
       $('coverNote').value = proj.coverNote || '';
     }
   }
@@ -340,6 +365,11 @@
       st.status = 'approved';
       if (!st.appliedDate) st.appliedDate = todayStr();
       if (!st.approvedDate) st.approvedDate = todayStr();
+    } else if (act === 'autoexpiry') {
+      var def = PP.permitById(card.dataset.permit);
+      var computed = PP.approvalExpiry(st.approvedDate, def && def.validityDays);
+      if (computed) { st.expiryDate = computed; flash('checkMsg', 'Expiry set to ' + computed + ' from approval date.'); }
+      else { flash('checkMsg', 'Could not compute expiry — check the approval date.'); }
     }
     save();
     renderPermits(proj);
@@ -496,6 +526,42 @@
     el.textContent = msg;
     setTimeout(function () { el.textContent = ''; }, 4000);
   }
+
+  $('projectStart').addEventListener('change', function (e) {
+    var proj = activeProject();
+    if (!proj) return;
+    proj.startDate = e.target.value;
+    save();
+    renderResults(); // refreshes apply-by flags
+  });
+
+  // Permit list toolbar: search, needed filter, CSV export
+  var ps = $('permitSearch');
+  ps.addEventListener('input', function () {
+    permitQuery = ps.value;
+    clearTimeout(ps._t);
+    ps._t = setTimeout(function () {
+      var proj = activeProject();
+      if (proj) renderPermits(proj);
+    }, 220);
+  });
+  $('permitNeededFilter').addEventListener('change', function (e) {
+    permitNeeded = e.target.value;
+    var proj = activeProject();
+    if (proj) renderPermits(proj);
+  });
+  $('exportPermitsCsv').addEventListener('click', function () {
+    var proj = activeProject();
+    if (!proj) return;
+    var results = PP.checkPermits({ jobType: proj.jobType, locationType: proj.locationType });
+    var visible = PP.filterPermits(results, permitQuery, permitNeeded);
+    var blob = new Blob([PP.permitsToCSV(visible, proj.permits)], { type: 'text/csv' });
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'permitpilot-permits.csv';
+    document.body.appendChild(a); a.click();
+    setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 500);
+  });
 
   // Open all document checklists when printing so they appear on paper.
   if ('onbeforeprint' in window) {

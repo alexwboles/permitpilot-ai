@@ -61,6 +61,9 @@
       <label>Project location type
         <select id="locationType"></select>
       </label>
+      <label>Target start date
+        <input type="date" id="projectStart">
+      </label>
     </div>
     <label class="block-label">Brief project description
       <textarea id="projectDesc" placeholder="e.g. Tear out the kitchen to the studs, move the sink to the island, add recessed lighting." maxlength="600"></textarea>
@@ -76,10 +79,21 @@
     <div class="folder-tab">File 3</div>
     <h2>Permits for this project</h2>
     <p class="muted">Typical requirements based on similar projects. <strong>Always confirm with your local building department before starting work.</strong></p>
+    <div id="nextAction" class="alert next"></div>
     <div id="alerts" class="alerts"></div>
     <div class="progress-wrap">
       <div class="muted" id="progressLabel"></div>
       <div class="progress"><div id="progressBar"></div></div>
+    </div>
+    <div class="row toolbar">
+      <input type="search" id="permitSearch" placeholder="Search permits (e.g. electrical)…" aria-label="Search permits" style="flex:1;min-width:180px">
+      <select id="permitNeededFilter" aria-label="Filter by assessment" style="flex:0 0 auto;width:auto">
+        <option value="">All assessments</option>
+        <option value="likely">Likely needed</option>
+        <option value="maybe">Possibly needed</option>
+        <option value="unlikely">Probably not</option>
+      </select>
+      <button type="button" id="exportPermitsCsv" class="ghost small">Export CSV</button>
     </div>
     <div id="permitList"></div>
     <div class="fee-box">

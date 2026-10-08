@@ -98,6 +98,69 @@ flow('rural fence lighter than commercial kitchen', function () {
   assert(est.low <= est.high, 'commercial fee inversion');
 });
 
+// 8. Apply-by dates work backward from the project start date.
+flow('apply-by dates derive from project start date', function () {
+  var ab = PP.applyByDate('building', '2026-12-19'); // 21-day review -> 2026-11-28
+  assert(ab === '2026-11-28', 'building apply-by should be 2026-11-28, got ' + ab);
+  var t = PP.applyByText('building', '2026-12-19');
+  assert(/apply by 2026-11-28/.test(t), 'apply-by text should carry the date, got: ' + t);
+  var left = PP.applyByDaysLeft('building', '2026-12-19');
+  assert(typeof left === 'number', 'days-left should be a number');
+  // a start date far in the past -> apply-by has passed
+  var past = PP.applyByText('building', '2020-01-01');
+  assert(/passed/.test(past), 'past start should flag a passed apply-by date, got: ' + past);
+});
+
+// 9. Approval expiry derives from the validity period.
+flow('approval expiry derives from validity days', function () {
+  assert(PP.approvalExpiry('2026-10-07', 180) === '2027-04-05', 'got ' + PP.approvalExpiry('2026-10-07', 180));
+  assert(PP.approvalExpiry('2026-10-07', 90) === '2027-01-05', 'got ' + PP.approvalExpiry('2026-10-07', 90));
+  assert(PP.approvalExpiry('bad', 180) === null, 'bad date -> null');
+  assert(PP.approvalExpiry('2026-10-07', 0) === null, 'zero validity -> null');
+});
+
+// 10. Permit search + needed filter.
+flow('permit search and needed filter', function () {
+  var res = PP.checkPermits({ jobType: 'room-addition', locationType: 'residential' });
+  var hits = PP.filterPermits(res, 'zoning', '');
+  assert(hits.length === 1 && hits[0].permitId === 'zoning', 'name search failed');
+  var likely = PP.filterPermits(res, '', 'likely');
+  assert(likely.length > 0 && likely.every(function (r) { return r.needed === 'likely'; }), 'needed filter failed');
+  var combo = PP.filterPermits(res, 'permit', 'unlikely');
+  assert(combo.every(function (r) { return r.needed === 'unlikely'; }), 'combined filter failed');
+  var all = PP.filterPermits(res, '', '');
+  assert(all.length === res.length, 'empty filter should return everything');
+});
+
+// 11. CSV export carries status, fees, and expiry.
+flow('permits CSV export', function () {
+  var res = PP.checkPermits({ jobType: 'fence', locationType: 'residential' });
+  var states = { fence: { status: 'applied', feeLow: 40, feeHigh: 120, expiryDate: '2027-03-01', docs: {} } };
+  var rows = PP.permitsToCSV(res, states).split('\n');
+  assert(rows[0] === 'Permit,Assessment,Status,Fee low ($),Fee high ($),Expiry date', 'header: ' + rows[0]);
+  var fenceRow = rows.filter(function (r) { return r.indexOf('Fence permit') === 0; })[0];
+  assert(fenceRow, 'fence row missing');
+  assert(fenceRow.indexOf('Applied') > 0, 'status missing: ' + fenceRow);
+  assert(fenceRow.indexOf('2027-03-01') > 0, 'expiry missing: ' + fenceRow);
+});
+
+// 12. Next-action nudge walks the pipeline: apply -> follow up -> cleared.
+flow('next-action nudge walks the pipeline', function () {
+  var res = PP.checkPermits({ jobType: 'kitchen-remodel', locationType: 'residential' });
+  var s1 = PP.nextProjectAction(res, {});
+  assert(/apply for your Building permit/.test(s1), 'should start with apply, got: ' + s1);
+  var states = {};
+  res.forEach(function (r) {
+    if (r.needed === 'unlikely') return;
+    states[r.permitId] = { status: 'applied', docs: { 0: true } };
+  });
+  var s2 = PP.nextProjectAction(res, states);
+  assert(/follow up/.test(s2), 'all applied -> follow up, got: ' + s2);
+  res.forEach(function (r) { if (states[r.permitId]) states[r.permitId].status = 'approved'; });
+  var s3 = PP.nextProjectAction(res, states);
+  assert(/cleared to start work/.test(s3), 'all approved -> cleared, got: ' + s3);
+});
+
 if (failures) { console.log('E2E: ' + failures + ' flow(s) FAILED'); process.exit(1); }
-console.log('E2E: 7/7 flows passed');
+console.log('E2E: 12/12 flows passed');
 EOF

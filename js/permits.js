@@ -8,6 +8,10 @@
  *   documentsFor(permitId), estimateFees(checkResults),
  *   daysUntil(dateStr), expiryStatus(expiryDateStr), expiryText(expiryDateStr),
  *   STATUS_STEPS, STATUS_LABELS, nextStatus(status), neededLabel(needed),
+ *   filterPermits(results, query, needed), permitsToCSV(checkResults, permitStates),
+ *   applyByDate(permitId, startDateISO), applyByDaysLeft(permitId, startDateISO),
+ *   applyByText(permitId, startDateISO), approvalExpiry(approvedDateISO, validityDays),
+ *   nextProjectAction(checkResults, permitStates),
  *   permitById(id), jobById(id), locationById(id)
  */
 (function (g) {
@@ -43,46 +47,46 @@
   var PERMITS = [
     { id: 'building',       name: 'Building permit',
       description: 'Covers structural work: framing, additions, and changes to the building envelope.',
-      typicalFeeLow: 150, typicalFeeHigh: 800, validityDays: 365 },
+      typicalFeeLow: 150, typicalFeeHigh: 800, validityDays: 365, typicalReviewDays: 21 },
     { id: 'electrical',     name: 'Electrical permit',
       description: 'New circuits, panel work, rewiring — signed off by the electrical inspector.',
-      typicalFeeLow: 50, typicalFeeHigh: 300, validityDays: 180 },
+      typicalFeeLow: 50, typicalFeeHigh: 300, validityDays: 180, typicalReviewDays: 14 },
     { id: 'plumbing',       name: 'Plumbing permit',
       description: 'Moving or adding fixtures, drain/waste/vent changes, gas piping.',
-      typicalFeeLow: 50, typicalFeeHigh: 300, validityDays: 180 },
+      typicalFeeLow: 50, typicalFeeHigh: 300, validityDays: 180, typicalReviewDays: 14 },
     { id: 'mechanical',     name: 'Mechanical / HVAC permit',
       description: 'Furnace, AC, ductwork, and venting installations.',
-      typicalFeeLow: 75, typicalFeeHigh: 350, validityDays: 180 },
+      typicalFeeLow: 75, typicalFeeHigh: 350, validityDays: 180, typicalReviewDays: 14 },
     { id: 'roofing',        name: 'Roofing permit',
       description: 'Full roof replacement; many cities inspect decking and underlayment.',
-      typicalFeeLow: 75, typicalFeeHigh: 250, validityDays: 180 },
+      typicalFeeLow: 75, typicalFeeHigh: 250, validityDays: 180, typicalReviewDays: 10 },
     { id: 'zoning',         name: 'Zoning / land-use approval',
       description: 'Setbacks, height limits, lot coverage — sign-off from planning staff.',
-      typicalFeeLow: 100, typicalFeeHigh: 500, validityDays: 365 },
+      typicalFeeLow: 100, typicalFeeHigh: 500, validityDays: 365, typicalReviewDays: 30 },
     { id: 'fence',          name: 'Fence permit',
       description: 'Height, material, and placement rules; corner lots often have extra limits.',
-      typicalFeeLow: 25, typicalFeeHigh: 150, validityDays: 180 },
+      typicalFeeLow: 25, typicalFeeHigh: 150, validityDays: 180, typicalReviewDays: 14 },
     { id: 'grading',        name: 'Grading / erosion control permit',
       description: 'Required when you move significant dirt or change drainage patterns.',
-      typicalFeeLow: 100, typicalFeeHigh: 600, validityDays: 365 },
+      typicalFeeLow: 100, typicalFeeHigh: 600, validityDays: 365, typicalReviewDays: 21 },
     { id: 'floodplain-dev', name: 'Floodplain development permit',
       description: 'Elevation certificates and flood-proofing review for work in flood zones.',
-      typicalFeeLow: 150, typicalFeeHigh: 750, validityDays: 365 },
+      typicalFeeLow: 150, typicalFeeHigh: 750, validityDays: 365, typicalReviewDays: 30 },
     { id: 'historic',       name: 'Historic preservation review',
       description: 'Design review board approval for exterior changes in historic districts.',
-      typicalFeeLow: 50, typicalFeeHigh: 400, validityDays: 365 },
+      typicalFeeLow: 50, typicalFeeHigh: 400, validityDays: 365, typicalReviewDays: 45 },
     { id: 'occupancy',      name: 'Certificate of occupancy / change of use',
       description: 'Commercial spaces need sign-off that the space is safe for its use.',
-      typicalFeeLow: 150, typicalFeeHigh: 900, validityDays: 365 },
+      typicalFeeLow: 150, typicalFeeHigh: 900, validityDays: 365, typicalReviewDays: 21 },
     { id: 'demolition',     name: 'Demolition permit',
       description: 'Tear-downs and major removals; asbestos/lead surveys usually required.',
-      typicalFeeLow: 75, typicalFeeHigh: 400, validityDays: 90 },
+      typicalFeeLow: 75, typicalFeeHigh: 400, validityDays: 90, typicalReviewDays: 14 },
     { id: 'septic',         name: 'Septic / well permit',
       description: 'On-site wastewater and water systems, common outside city sewer service.',
-      typicalFeeLow: 200, typicalFeeHigh: 800, validityDays: 365 },
+      typicalFeeLow: 200, typicalFeeHigh: 800, validityDays: 365, typicalReviewDays: 30 },
     { id: 'right-of-way',   name: 'Right-of-way permit',
       description: 'Work in the public right-of-way: sidewalks, driveways, street crossings.',
-      typicalFeeLow: 50, typicalFeeHigh: 200, validityDays: 180 }
+      typicalFeeLow: 50, typicalFeeHigh: 200, validityDays: 180, typicalReviewDays: 14 },
   ];
 
   // Per-job default permit assessments: [permitId, needed, reason].
@@ -380,6 +384,104 @@
     return 'Probably not';
   }
 
+  // Filter check results by permit-name query and/or needed status.
+  function filterPermits(results, query, needed) {
+    var q = String(query || '').trim().toLowerCase();
+    return (results || []).filter(function (r) {
+      if (needed && r.needed !== needed) return false;
+      if (q) {
+        var def = permitById(r.permitId);
+        var name = def ? def.name : r.permitId;
+        if (name.toLowerCase().indexOf(q) < 0) return false;
+      }
+      return true;
+    });
+  }
+
+  function csvCell(v) {
+    var s = String(v === undefined || v === null ? '' : v);
+    return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+  }
+
+  // Check results + per-permit state -> CSV for sharing with a contractor or the city.
+  function permitsToCSV(checkResults, permitStates) {
+    var rows = [['Permit', 'Assessment', 'Status', 'Fee low ($)', 'Fee high ($)', 'Expiry date']];
+    (checkResults || []).forEach(function (r) {
+      var def = permitById(r.permitId) || {};
+      var st = (permitStates || {})[r.permitId] || {};
+      rows.push([
+        def.name || r.permitId,
+        neededLabel(r.needed),
+        STATUS_LABELS[st.status] || STATUS_LABELS['not-started'],
+        st.feeLow === undefined ? '' : st.feeLow,
+        st.feeHigh === undefined ? '' : st.feeHigh,
+        st.expiryDate || ''
+      ]);
+    });
+    return rows.map(function (r) { return r.map(csvCell).join(','); }).join('\n');
+  }
+
+  // Latest date to apply for a permit so it clears before the project start date,
+  // based on the typical review time. Returns ISO or null.
+  function applyByDate(permitId, startDateISO) {
+    var def = permitById(permitId);
+    if (!def || !startDateISO) return null;
+    var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(startDateISO));
+    if (!m) return null;
+    var d = new Date(+m[1], +m[2] - 1, +m[3]);
+    d.setDate(d.getDate() - (def.typicalReviewDays || 14));
+    return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2);
+  }
+
+  // Days from today until the apply-by date (negative = the date has passed). null = unknown.
+  function applyByDaysLeft(permitId, startDateISO) {
+    var ab = applyByDate(permitId, startDateISO);
+    return ab ? daysUntil(ab) : null;
+  }
+
+  function applyByText(permitId, startDateISO) {
+    var d = applyByDaysLeft(permitId, startDateISO);
+    if (d === null) return '';
+    var ab = applyByDate(permitId, startDateISO);
+    if (d < 0) return 'apply-by date passed ' + (-d) + (d === -1 ? ' day ago' : ' days ago');
+    if (d === 0) return 'apply by today (' + ab + ')';
+    return 'apply by ' + ab + ' (' + d + (d === 1 ? ' day left' : ' days left') + ')';
+  }
+
+  // Expected expiry when a permit is approved, from its validity period. Returns ISO or null.
+  function approvalExpiry(approvedDateISO, validityDays) {
+    var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(approvedDateISO || ''));
+    var v = parseInt(validityDays, 10);
+    if (!m || !(v > 0)) return null;
+    var d = new Date(+m[1], +m[2] - 1, +m[3]);
+    d.setDate(d.getDate() + v);
+    return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2);
+  }
+
+  // Plain-language next action for a project: what to do now.
+  function nextProjectAction(checkResults, permitStates) {
+    var rel = (checkResults || []).filter(function (r) { return r.needed !== 'unlikely'; });
+    if (!rel.length) return 'Run the permit check to see what this project needs.';
+    var states = permitStates || {};
+    var notStarted = rel.filter(function (r) { return (states[r.permitId] || {}).status !== 'applied' && (states[r.permitId] || {}).status !== 'approved'; });
+    if (notStarted.length) {
+      var first = notStarted[0];
+      var def = permitById(first.permitId);
+      var docs = documentsFor(first.permitId);
+      var st = states[first.permitId] || {};
+      var done = docs.filter(function (dd, i) { return st.docs && st.docs[i]; }).length;
+      return 'Next: apply for your ' + (def ? def.name : first.permitId) +
+        ' — ' + (docs.length - done) + ' of ' + docs.length + ' supporting documents still to gather.';
+    }
+    var applied = rel.filter(function (r) { return (states[r.permitId] || {}).status === 'applied'; });
+    if (applied.length) {
+      var ad = permitById(applied[0].permitId);
+      return 'Next: follow up on your applied ' + (ad ? ad.name : applied[0].permitId) +
+        ' — check the building department\u2019s review status.';
+    }
+    return 'All ' + rel.length + ' relevant permits are approved — you\u2019re cleared to start work.';
+  }
+
   PP.JOB_TYPES = JOB_TYPES;
   PP.LOCATION_TYPES = LOCATION_TYPES;
   PP.PERMITS = PERMITS;
@@ -393,6 +495,13 @@
   PP.STATUS_LABELS = STATUS_LABELS;
   PP.nextStatus = nextStatus;
   PP.neededLabel = neededLabel;
+  PP.filterPermits = filterPermits;
+  PP.permitsToCSV = permitsToCSV;
+  PP.applyByDate = applyByDate;
+  PP.applyByDaysLeft = applyByDaysLeft;
+  PP.applyByText = applyByText;
+  PP.approvalExpiry = approvalExpiry;
+  PP.nextProjectAction = nextProjectAction;
   PP.permitById = permitById;
   PP.jobById = jobById;
   PP.locationById = locationById;
