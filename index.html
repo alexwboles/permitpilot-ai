@@ -68,6 +68,18 @@
     <label class="block-label">Brief project description
       <textarea id="projectDesc" placeholder="e.g. Tear out the kitchen to the studs, move the sink to the island, add recessed lighting." maxlength="600"></textarea>
     </label>
+    <h3 style="margin-top:1rem">Contractor on record <span class="hint">(optional — prints on the report)</span></h3>
+    <div class="grid">
+      <label>Contractor name
+        <input type="text" id="contractorName" placeholder="e.g. Acme Builders" maxlength="80">
+      </label>
+      <label>Phone
+        <input type="tel" id="contractorPhone" placeholder="555-0100" maxlength="40">
+      </label>
+      <label>License #
+        <input type="text" id="contractorLicense" placeholder="e.g. CGC-123456" maxlength="40">
+      </label>
+    </div>
     <div class="row">
       <button type="button" id="checkPermits" class="primary">Check permits</button>
       <span id="checkMsg" class="muted"></span>
@@ -80,6 +92,7 @@
     <h2>Permits for this project</h2>
     <p class="muted">Typical requirements based on similar projects. <strong>Always confirm with your local building department before starting work.</strong></p>
     <div id="nextAction" class="alert next"></div>
+    <div id="deadlines" class="deadlines"></div>
     <div id="alerts" class="alerts"></div>
     <div class="progress-wrap">
       <div class="muted" id="progressLabel"></div>
@@ -94,7 +107,9 @@
         <option value="unlikely">Probably not</option>
       </select>
       <button type="button" id="exportPermitsCsv" class="ghost small">Export CSV</button>
+      <button type="button" id="printReport" class="ghost small">Print report</button>
     </div>
+    <div id="printSummary" class="print-summary"></div>
     <div id="permitList"></div>
     <div class="fee-box">
       <div>

@@ -12,6 +12,7 @@
  *   applyByDate(permitId, startDateISO), applyByDaysLeft(permitId, startDateISO),
  *   applyByText(permitId, startDateISO), approvalExpiry(approvedDateISO, validityDays),
  *   nextProjectAction(checkResults, permitStates),
+ *   diffDaysISO(a, b), projectDeadlines(proj, todayStr), deadlineText(deadline),
  *   permitById(id), jobById(id), locationById(id)
  */
 (function (g) {
@@ -482,6 +483,72 @@
     return 'All ' + rel.length + ' relevant permits are approved — you\u2019re cleared to start work.';
   }
 
+  // Whole days between two ISO dates (b - a). null when either is invalid.
+  function diffDaysISO(a, b) {
+    var ma = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(a || ''));
+    var mb = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(b || ''));
+    if (!ma || !mb) return null;
+    var da = new Date(+ma[1], +ma[2] - 1, +ma[3]);
+    var db = new Date(+mb[1], +mb[2] - 1, +mb[3]);
+    if (isNaN(da.getTime()) || isNaN(db.getTime())) return null;
+    return Math.round((db.getTime() - da.getTime()) / 86400000);
+  }
+
+  // Upcoming deadlines for a project: apply-by dates (from the target start
+  // date), permit expiry dates, and the project start date itself.
+  // Each entry: {date, label, kind: 'apply-by'|'expiry'|'start', daysLeft, permitId, permitName}.
+  // Sorted oldest-first. todayStr optional (defaults to today).
+  function projectDeadlines(proj, todayStr) {
+    var out = [];
+    if (!proj) return out;
+    function daysLeftFor(date) {
+      return todayStr ? diffDaysISO(todayStr, date) : daysUntil(date);
+    }
+    if (proj.startDate) {
+      out.push({
+        date: proj.startDate, label: 'Project start date', kind: 'start',
+        daysLeft: daysLeftFor(proj.startDate), permitId: null, permitName: null
+      });
+    }
+    var results = checkPermits({ jobType: proj.jobType, locationType: proj.locationType });
+    var states = proj.permits || {};
+    results.forEach(function (r) {
+      if (r.needed === 'unlikely') return;
+      var def = permitById(r.permitId) || {};
+      var st = states[r.permitId] || {};
+      if (proj.startDate && st.status !== 'approved') {
+        var ab = applyByDate(r.permitId, proj.startDate);
+        if (ab) {
+          out.push({
+            date: ab, label: 'Apply by: ' + (def.name || r.permitId), kind: 'apply-by',
+            daysLeft: daysLeftFor(ab), permitId: r.permitId, permitName: def.name || r.permitId
+          });
+        }
+      }
+      if (st.expiryDate) {
+        out.push({
+          date: st.expiryDate, label: 'Expires: ' + (def.name || r.permitId), kind: 'expiry',
+          daysLeft: daysLeftFor(st.expiryDate), permitId: r.permitId, permitName: def.name || r.permitId
+        });
+      }
+    });
+    out.sort(function (a, b) { return a.date < b.date ? -1 : a.date > b.date ? 1 : 0; });
+    return out;
+  }
+
+  // Plain-language label for a deadline entry.
+  function deadlineText(d) {
+    if (!d || !d.date) return '';
+    var dl = d.daysLeft;
+    var when;
+    if (dl === null || dl === undefined) when = 'on ' + d.date;
+    else if (dl < 0) when = (-dl) + (dl === -1 ? ' day ago' : ' days ago');
+    else if (dl === 0) when = 'today';
+    else if (dl === 1) when = 'tomorrow';
+    else when = 'in ' + dl + ' days';
+    return d.label + ' — ' + when + ' (' + d.date + ')';
+  }
+
   PP.JOB_TYPES = JOB_TYPES;
   PP.LOCATION_TYPES = LOCATION_TYPES;
   PP.PERMITS = PERMITS;
@@ -502,6 +569,9 @@
   PP.applyByText = applyByText;
   PP.approvalExpiry = approvalExpiry;
   PP.nextProjectAction = nextProjectAction;
+  PP.diffDaysISO = diffDaysISO;
+  PP.projectDeadlines = projectDeadlines;
+  PP.deadlineText = deadlineText;
   PP.permitById = permitById;
   PP.jobById = jobById;
   PP.locationById = locationById;

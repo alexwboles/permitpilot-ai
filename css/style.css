@@ -238,7 +238,44 @@ footer .center { text-align: center; }
 @media print {
   .topbar, .disclaimer-banner, .row, footer .center { display: none; }
   .card.dossier { box-shadow: none; break-inside: avoid; }
+  /* one-page report: only the generated summary prints */
+  body.print-report #projectsSection,
+  body.print-report #detailsSection,
+  body.print-report #settingsSection,
+  body.print-report #nextAction,
+  body.print-report #deadlines,
+  body.print-report #alerts,
+  body.print-report .progress-wrap,
+  body.print-report .toolbar,
+  body.print-report #permitList,
+  body.print-report .fee-box,
+  body.print-report #resultsSection > h2,
+  body.print-report #resultsSection > p.muted,
+  body.print-report #resultsSection > h3,
+  body.print-report .cover-note,
+  body.print-report footer { display: none !important; }
+  body.print-report #resultsSection { display: block !important; }
+  body.print-report .print-summary { display: block !important; }
 }
+
+/* ---------- upcoming deadlines ---------- */
+.deadlines{border:1px solid var(--line);border-radius:0;background:#fffdf6;padding:12px 16px;margin:12px 0}
+.deadlines h3{margin:0 0 8px;font-size:.95rem}
+.deadline-list{list-style:none;margin:0;padding:0}
+.deadline{display:flex;gap:10px;align-items:baseline;padding:6px 0;border-bottom:1px dashed #e3d9c4;font-size:.92rem}
+.deadline:last-child{border-bottom:none}
+.deadline.past{color:#a33}
+.deadline.past .flag{background:#a33}
+.deadline.soon .flag{background:#b8860b}
+
+/* ---------- printable summary (screen-hidden) ---------- */
+.print-summary{display:none}
+@media screen{ .print-summary{display:none} }
+.ps-head .ps-kicker{font-size:.75rem;letter-spacing:.12em;text-transform:uppercase;color:#666}
+.ps-table{width:100%;border-collapse:collapse;margin:8px 0;font-size:.85rem}
+.ps-table th,.ps-table td{border:1px solid #999;padding:6px 8px;text-align:left}
+.ps-total{margin-top:10px}
+.ps-disc{font-size:.75rem;color:#555;border-top:1px solid #999;padding-top:8px;margin-top:14px}
 
 /* ---------- responsive ---------- */
 @media (max-width: 640px) {

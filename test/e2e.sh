@@ -132,6 +132,53 @@ flow('permit search and needed filter', function () {
   assert(all.length === res.length, 'empty filter should return everything');
 });
 
+// 12. Project deadlines: start date, apply-by dates, expiry dates — sorted, with days-left.
+flow('project deadlines combine start/apply-by/expiry', function () {
+  var proj = {
+    name: 'Test', jobType: 'room-addition', locationType: 'residential',
+    startDate: '2026-12-19',
+    permits: {
+      building: { needed: 'likely', status: 'applied', expiryDate: '2027-01-15' },
+      zoning: { needed: 'likely', status: 'not-started' }
+    }
+  };
+  var dl = PP.projectDeadlines(proj, '2026-11-01');
+  assert(dl.length >= 4, 'expected start + apply-bys + expiry, got ' + dl.length);
+  var kinds = dl.map(function (d) { return d.kind; });
+  assert(kinds.indexOf('start') >= 0, 'missing start deadline');
+  assert(kinds.indexOf('apply-by') >= 0, 'missing apply-by deadline');
+  assert(kinds.indexOf('expiry') >= 0, 'missing expiry deadline');
+  // sorted oldest-first
+  for (var i = 1; i < dl.length; i++) assert(dl[i - 1].date <= dl[i].date, 'not sorted: ' + dl[i - 1].date + ' > ' + dl[i].date);
+  // building apply-by = start - 21 review days = 2026-11-28 -> 27 days from 2026-11-01
+  var ab = dl.filter(function (d) { return d.kind === 'apply-by' && d.permitId === 'building'; })[0];
+  assert(ab && ab.date === '2026-11-28', 'building apply-by wrong: ' + JSON.stringify(ab));
+  assert(ab.daysLeft === 27, 'building daysLeft wrong: ' + ab.daysLeft);
+  // approved permits skip the apply-by deadline
+  proj.permits.building.status = 'approved';
+  var dl2 = PP.projectDeadlines(proj, '2026-11-01');
+  assert(!dl2.some(function (d) { return d.kind === 'apply-by' && d.permitId === 'building'; }), 'approved permit should not need apply-by');
+  // unlikely permits excluded
+  assert(!dl2.some(function (d) { return d.permitId === 'fence'; }), 'unlikely permits excluded');
+  // no start date -> no start/apply-by deadlines, but expiries still listed
+  var noStart = PP.projectDeadlines({ jobType: 'fence', locationType: 'residential', startDate: '', permits: { fence: { expiryDate: '2027-02-01' } } }, '2026-11-01');
+  assert(noStart.length === 1 && noStart[0].kind === 'expiry', 'no-start deadlines: ' + JSON.stringify(noStart));
+  // null project -> empty
+  assert(PP.projectDeadlines(null, '2026-11-01').length === 0, 'null project should give no deadlines');
+});
+
+// 13. Deadline text is plain language; diffDaysISO handles edges.
+flow('deadline text and diffDaysISO', function () {
+  assert(PP.diffDaysISO('2026-11-01', '2026-11-28') === 27, 'diff');
+  assert(PP.diffDaysISO('2026-11-28', '2026-11-01') === -27, 'negative diff');
+  assert(PP.diffDaysISO('bad', '2026-11-01') === null, 'bad date -> null');
+  assert(PP.diffDaysISO(null, null) === null, 'null -> null');
+  var t1 = PP.deadlineText({ label: 'Apply by: Building permit', date: '2026-11-28', daysLeft: 1 });
+  assert(/tomorrow/.test(t1) && /2026-11-28/.test(t1), 'tomorrow text: ' + t1);
+  assert(/2 days ago/.test(PP.deadlineText({ label: 'X', date: '2026-10-30', daysLeft: -2 })), 'past text');
+  assert(/today/.test(PP.deadlineText({ label: 'Y', date: '2026-11-01', daysLeft: 0 })), 'today text');
+});
+
 // 11. CSV export carries status, fees, and expiry.
 flow('permits CSV export', function () {
   var res = PP.checkPermits({ jobType: 'fence', locationType: 'residential' });
@@ -162,5 +209,5 @@ flow('next-action nudge walks the pipeline', function () {
 });
 
 if (failures) { console.log('E2E: ' + failures + ' flow(s) FAILED'); process.exit(1); }
-console.log('E2E: 12/12 flows passed');
+console.log('E2E: 14/14 flows passed');
 EOF

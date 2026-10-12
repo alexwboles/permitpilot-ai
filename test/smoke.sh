@@ -139,4 +139,23 @@ check "nextProjectAction phrasing" node -e "
   console.log('next-action phrasing OK');
 "
 
-echo "SMOKE: $PASS/18 passed"
+check "new deadline helpers exported" node -e "
+  require('./js/permits.js');
+  var PP = globalThis.PP;
+  ['projectDeadlines','deadlineText','diffDaysISO'].forEach(function (f) {
+    if (typeof PP[f] !== 'function') { console.error('missing ' + f); process.exit(1); }
+  });
+  console.log('deadline helpers OK');
+"
+check "deadlines UI + contractor + print wiring" bash -c '
+  grep -q "id=\"deadlines\"" index.html &&
+  grep -q "id=\"printReport\"" index.html &&
+  grep -q "id=\"printSummary\"" index.html &&
+  grep -q "id=\"contractorName\"" index.html &&
+  grep -q "id=\"contractorPhone\"" index.html &&
+  grep -q "id=\"contractorLicense\"" index.html &&
+  grep -q "renderDeadlines" js/app.js &&
+  grep -q "renderPrintSummary" js/app.js &&
+  grep -q "print-report" css/style.css'
+
+echo "SMOKE: $PASS/20 passed"

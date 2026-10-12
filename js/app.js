@@ -13,6 +13,10 @@
     try {
       var s = JSON.parse(localStorage.getItem(LS_KEY) || '{}');
       s.projects = s.projects || [];
+      // backfill fields added after some projects were saved
+      s.projects.forEach(function (p) {
+        if (!p.contractor) p.contractor = { name: '', phone: '', license: '' };
+      });
       return s;
     } catch (e) {
       return { projects: [] };
@@ -41,7 +45,8 @@
       createdAt: new Date().toISOString().slice(0, 10),
       checked: false,
       permits: {},   // permitId -> state
-      coverNote: ''
+      coverNote: '',
+      contractor: { name: '', phone: '', license: '' }  // contractor on record
     };
   }
 
@@ -111,6 +116,10 @@
     lt.value = proj.locationType;
     $('projectDesc').value = proj.description || '';
     $('projectStart').value = proj.startDate || '';
+    var c = proj.contractor || {};
+    $('contractorName').value = c.name || '';
+    $('contractorPhone').value = c.phone || '';
+    $('contractorLicense').value = c.license || '';
   }
 
   // ---------- results ----------
@@ -254,9 +263,72 @@
       var results = PP.checkPermits({ jobType: proj.jobType, locationType: proj.locationType });
       var next = PP.nextProjectAction(results, proj.permits);
       $('nextAction').innerHTML = '<span class="flag">Next</span><span>' + esc(next) + '</span>';
+      renderDeadlines(proj);
       renderPermits(proj, results);
+      renderPrintSummary(proj);
       $('coverNote').value = proj.coverNote || '';
     }
+  }
+
+  // ---------- upcoming deadlines ----------
+  function renderDeadlines(proj) {
+    var box = $('deadlines');
+    var list = PP.projectDeadlines(proj);
+    if (!list.length) { box.innerHTML = ''; box.style.display = 'none'; return; }
+    box.style.display = 'block';
+    var html = '<h3>Upcoming deadlines</h3><ul class="deadline-list">';
+    list.forEach(function (d) {
+      var cls = (d.daysLeft !== null && d.daysLeft < 0) ? ' past'
+        : (d.kind === 'apply-by' && d.daysLeft !== null && d.daysLeft <= 14) ? ' soon' : '';
+      var flag = d.kind === 'apply-by' ? 'APPLY-BY' : d.kind === 'expiry' ? 'EXPIRY' : 'START';
+      html += '<li class="deadline' + cls + '"><span class="flag">' + flag + '</span>' +
+        '<span>' + esc(PP.deadlineText(d)) + '</span></li>';
+    });
+    html += '</ul>';
+    box.innerHTML = html;
+  }
+
+  // ---------- printable one-page summary ----------
+  // Rendered into #printSummary, which is hidden on screen and shown only in print.
+  function renderPrintSummary(proj) {
+    var results = PP.checkPermits({ jobType: proj.jobType, locationType: proj.locationType });
+    var job = PP.jobById(proj.jobType), loc = PP.locationById(proj.locationType);
+    var rel = results.filter(function (r) { return r.needed !== 'unlikely'; });
+    var approved = rel.filter(function (r) { return (proj.permits[r.permitId] || {}).status === 'approved'; }).length;
+    var deadlines = PP.projectDeadlines(proj);
+    var c = proj.contractor || {};
+    var low = 0, high = 0;
+    rel.forEach(function (r) {
+      var st = proj.permits[r.permitId] || {};
+      low += Number(st.feeLow) || 0;
+      high += Number(st.feeHigh) || 0;
+    });
+    var html = '<div class="ps-head"><div class="ps-kicker">PermitPilot AI — project summary</div>' +
+      '<h2>' + esc(proj.name) + '</h2>' +
+      '<p>' + esc(job ? job.name : proj.jobType) + ' · ' + esc(loc ? loc.name : proj.locationType) +
+      (proj.startDate ? ' · target start ' + esc(proj.startDate) : '') + '</p>' +
+      (proj.description ? '<p>' + esc(proj.description) + '</p>' : '') +
+      ((c.name || c.phone || c.license) ? '<p><strong>Contractor:</strong> ' + esc([c.name, c.phone, c.license].filter(Boolean).join(' · ')) + '</p>' : '') +
+      '</div>';
+    html += '<h3>Permits (' + approved + ' of ' + rel.length + ' approved)</h3><table class="ps-table">' +
+      '<tr><th>Permit</th><th>Assessment</th><th>Status</th><th>Est. fee</th><th>Expiry</th></tr>';
+    rel.forEach(function (r) {
+      var def = PP.permitById(r.permitId) || {};
+      var st = proj.permits[r.permitId] || {};
+      html += '<tr><td>' + esc(def.name || r.permitId) + '</td><td>' + esc(PP.neededLabel(r.needed)) + '</td>' +
+        '<td>' + esc(PP.STATUS_LABELS[st.status] || 'Not started') + '</td>' +
+        '<td>' + money(Number(st.feeLow) || 0) + '–' + money(Number(st.feeHigh) || 0) + '</td>' +
+        '<td>' + esc(st.expiryDate || '—') + '</td></tr>';
+    });
+    html += '</table>';
+    if (deadlines.length) {
+      html += '<h3>Key dates</h3><ul>';
+      deadlines.forEach(function (d) { html += '<li>' + esc(PP.deadlineText(d)) + '</li>'; });
+      html += '</ul>';
+    }
+    html += '<p class="ps-total"><strong>Estimated fees: ' + money(low) + '–' + money(high) + '</strong></p>' +
+      '<p class="ps-disc">' + esc(PP.DISCLAIMER) + '</p>';
+    $('printSummary').innerHTML = html;
   }
 
   function rerender() {
@@ -533,6 +605,25 @@
     proj.startDate = e.target.value;
     save();
     renderResults(); // refreshes apply-by flags
+  });
+
+  ['contractorName', 'contractorPhone', 'contractorLicense'].forEach(function (id, i) {
+    $(id).addEventListener('input', function (e) {
+      var proj = activeProject();
+      if (!proj) return;
+      proj.contractor = proj.contractor || {};
+      proj.contractor[['name', 'phone', 'license'][i]] = e.target.value;
+      save();
+    });
+  });
+
+  $('printReport').addEventListener('click', function () {
+    var proj = activeProject();
+    if (!proj || !proj.checked) { flash('checkMsg', 'Run "Check permits" first.'); return; }
+    renderPrintSummary(proj);
+    document.body.classList.add('print-report');
+    window.print();
+    setTimeout(function () { document.body.classList.remove('print-report'); }, 500);
   });
 
   // Permit list toolbar: search, needed filter, CSV export
