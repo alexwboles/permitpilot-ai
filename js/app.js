@@ -16,6 +16,7 @@
       // backfill fields added after some projects were saved
       s.projects.forEach(function (p) {
         if (!p.contractor) p.contractor = { name: '', phone: '', license: '' };
+        if (!Array.isArray(p.log)) p.log = [];
       });
       return s;
     } catch (e) {
@@ -46,8 +47,15 @@
       checked: false,
       permits: {},   // permitId -> state
       coverNote: '',
+      log: [],       // site log: {id, date, type, text}
       contractor: { name: '', phone: '', license: '' }  // contractor on record
     };
+  }
+
+  var LOG_TYPES = ['Field note', 'Inspector call', 'Inspection', 'Delay', 'Delivery', 'Milestone'];
+
+  function logId() {
+    return 'l' + Date.now().toString(36) + Math.floor(Math.random() * 1e6).toString(36);
   }
 
   var permitQuery = '', permitNeeded = '';
@@ -96,6 +104,66 @@
     var proj = activeProject();
     $('projectName').value = proj ? proj.name : '';
     $('deleteProject').disabled = !proj;
+    renderRail();
+  }
+
+  // Procore-style project rail: every project one tap away, with permit progress.
+  function renderRail() {
+    var rail = $('projectRail');
+    if (!rail) return;
+    rail.innerHTML = '';
+    if (!store.projects.length) {
+      var empty = document.createElement('div');
+      empty.className = 'rail-empty';
+      empty.textContent = 'No projects yet.';
+      rail.appendChild(empty);
+      return;
+    }
+    store.projects.forEach(function (p) {
+      var rel = relevantPermits(p);
+      var approved = rel.filter(function (r) { return r.st.status === 'approved'; }).length;
+      var pct = rel.length ? Math.round(approved / rel.length * 100) : 0;
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'rail-proj' + (p.id === store.activeId ? ' active' : '');
+      b.innerHTML = '<span class="rp-name">' + esc(p.name) + '</span>' +
+        '<span class="rp-meta">' + approved + '/' + rel.length + ' approved</span>' +
+        '<span class="rp-bar"><i style="width:' + pct + '%"></i></span>';
+      b.addEventListener('click', function () {
+        store.activeId = p.id;
+        save();
+        rerender();
+      });
+      rail.appendChild(b);
+    });
+  }
+
+  // Site log (Procore daily-log style): dated entries per project, newest first.
+  function renderLog() {
+    var proj = activeProject();
+    var box = $('logList');
+    if (!box) return;
+    var entries = (proj && Array.isArray(proj.log) ? proj.log : []).slice()
+      .sort(function (a, b) { return String(b.date).localeCompare(String(a.date)); });
+    if (!entries.length) {
+      box.innerHTML = '<p class="muted">No entries yet — log the first site visit, inspector call, or delay above.</p>';
+      return;
+    }
+    box.innerHTML = entries.map(function (e) {
+      return '<div class="log-entry"><div class="log-head"><span class="log-type">' + esc(e.type) + '</span>' +
+        '<span class="log-date">' + esc(e.date) + '</span>' +
+        '<button type="button" class="log-del" data-logdel="' + esc(e.id) + '" aria-label="Delete entry">Delete</button></div>' +
+        '<div class="log-text">' + esc(e.text) + '</div></div>';
+    }).join('');
+    box.querySelectorAll('[data-logdel]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var p = activeProject();
+        if (!p) return;
+        p.log = p.log.filter(function (e) { return e.id !== btn.getAttribute('data-logdel'); });
+        save();
+        renderLog();
+      });
+    });
   }
 
   function renderForm() {
@@ -383,6 +451,37 @@
     renderProjectBar();
     renderForm();
     renderResults();
+    renderLog();
+  }
+
+  function wireLog() {
+    var typeSel = $('logType');
+    if (typeSel && !typeSel.options.length) {
+      LOG_TYPES.forEach(function (t) {
+        var o = document.createElement('option');
+        o.value = t; o.textContent = t;
+        typeSel.appendChild(o);
+      });
+    }
+    var dateInput = $('logDate');
+    if (dateInput && !dateInput.value) dateInput.value = todayStr();
+    $('addLog').addEventListener('click', function () {
+      var proj = activeProject();
+      if (!proj) { flash('logMsg', 'Create a project first.'); return; }
+      var text = $('logText').value.trim();
+      if (!text) { flash('logMsg', 'Write the entry first.'); return; }
+      proj.log.push({
+        id: logId(),
+        date: $('logDate').value || todayStr(),
+        type: $('logType').value || 'Field note',
+        text: text
+      });
+      save();
+      $('logText').value = '';
+      renderLog();
+      flash('logMsg', 'Entry added.');
+    });
+    $('railNew').addEventListener('click', function () { $('newProject').click(); });
   }
 
   // ---------- events ----------
@@ -642,6 +741,11 @@
       if (res.permitId === 'plumbing') { st.status = 'not-started'; st.expiryDate = addDays(todayStr(), 21); }
     });
     p.coverNote = '';
+    p.log = [
+      { id: 'lsample1', date: addDays(todayStr(), -20), type: 'Field note', text: 'Walked the kitchen with the homeowner. Sink move to the island confirmed; gas line will need rerouting.' },
+      { id: 'lsample2', date: addDays(todayStr(), -12), type: 'Inspector call', text: 'Building dept confirmed the building permit application was received. Plan review estimated 2–3 weeks.' },
+      { id: 'lsample3', date: addDays(todayStr(), -6), type: 'Inspection', text: 'Rough electrical passed. OK to insulate.' }
+    ];
     store.projects.push(p);
     store.activeId = p.id;
     save();
@@ -724,5 +828,6 @@
     };
   }
 
+  wireLog();
   rerender();
 })();

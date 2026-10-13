@@ -216,4 +216,17 @@ check "deadlines UI + contractor + print wiring" bash -c '
   grep -q "renderPrintSummary" js/app.js &&
   grep -q "print-report" css/style.css'
 
+check "project rail + site log wiring" bash -c '
+  grep -q "id=\"projectRail\"" index.html &&
+  grep -q "id=\"railNew\"" index.html &&
+  grep -q "id=\"logSection\"" index.html &&
+  grep -q "id=\"logType\"" index.html &&
+  grep -q "id=\"addLog\"" index.html &&
+  grep -q "id=\"logList\"" index.html &&
+  grep -q "renderRail" js/app.js &&
+  grep -q "renderLog" js/app.js &&
+  grep -q "log-entry" css/style.css &&
+  grep -q "rail-proj" css/style.css &&
+  ! grep -E "border-radius:[[:space:]]*[1-9]" css/style.css | grep -qv "50%"'
+
 echo "SMOKE: $PASS/$PASS passed"
