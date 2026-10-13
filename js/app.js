@@ -64,6 +64,8 @@
     st.appliedDate = st.appliedDate || '';
     st.approvedDate = st.approvedDate || '';
     st.expiryDate = st.expiryDate || '';
+    st.inspections = st.inspections || [];
+    st.payments = st.payments || [];
     project.permits[permitId] = st;
     return st;
   }
@@ -225,7 +227,7 @@
           ? '<div style="margin-top:6px"><button type="button" class="ghost small" data-act="autoexpiry">Set expiry from approval date (' + esc(st.approvedDate) + ' + ' + def.validityDays + ' days)</button></div>'
           : '');
 
-      card.innerHTML = head + pipeline + docsHtml + fees + expiry;
+      card.innerHTML = head + pipeline + docsHtml + fees + expiry + inspPayHtml(st);
       list.appendChild(card);
     });
     if (hidden > 0) {
@@ -243,6 +245,38 @@
     var n = 0;
     docs.forEach(function (d, i) { if (st.docs[i]) n++; });
     return n;
+  }
+
+  /* Second sweep: per-permit inspections + fee payments panel. */
+  function inspPayHtml(st) {
+    var sum = PP.inspectionSummary(st);
+    var bal = PP.feeBalance(st);
+    var rows = sum.list.map(function (x) {
+      return '<li class="insp ' + x.outcome + '"><span><strong>' + esc(x.date || 'no date') + '</strong> — ' +
+        esc(x.kind || 'Inspection') + ' <em>(' + x.outcome + ')</em>' +
+        (x.note ? '<br><span class="muted">' + esc(x.note) + '</span>' : '') +
+        '</span><button type="button" class="ghost small" data-act="delinsp" data-insp="' + x.id + '">Remove</button></li>';
+    }).join('');
+    var payRows = (st.payments || []).map(function (p) {
+      return '<li><span>' + money(p.amount) + (p.date ? ' on ' + esc(p.date) : '') + '</span>' +
+        '<button type="button" class="ghost small" data-act="delpay" data-pay="' + p.id + '">Remove</button></li>';
+    }).join('');
+    return '<details class="docs insppay"><summary>Inspections (' + sum.count + ') · Fees paid ' + money(bal.paid) + '</summary>' +
+      '<h4 style="margin:10px 0 4px">Inspections</h4>' +
+      (rows ? '<ul class="insp-list">' + rows + '</ul>' : '<p class="muted" style="font-size:.86rem">No inspections logged yet.</p>') +
+      '<div class="row"><input type="date" data-insdate aria-label="Inspection date">' +
+      '<input type="text" data-inskind placeholder="Kind (e.g. rough-in)" aria-label="Inspection kind">' +
+      '<select data-insoutcome>' + PP.INSPECTION_OUTCOMES.map(function (o) { return '<option value="' + o + '">' + o + '</option>'; }).join('') + '</select>' +
+      '<input type="text" data-insnote placeholder="Note (optional)" aria-label="Inspection note">' +
+      '<button type="button" class="ghost small" data-act="addinsp">Log inspection</button></div>' +
+      '<h4 style="margin:10px 0 4px">Fee payments</h4>' +
+      (payRows ? '<ul class="pay-list">' + payRows + '</ul>' : '<p class="muted" style="font-size:.86rem">No payments recorded yet.</p>') +
+      '<p style="font-size:.86rem">Paid <strong>' + money(bal.paid) + '</strong> of est. ' + money(bal.low) + '–' + money(bal.high) +
+      ' · remaining ' + money(bal.remainingLow) + '–' + money(bal.remainingHigh) + '</p>' +
+      '<div class="row"><input type="number" min="0" data-payamt placeholder="Amount ($)" aria-label="Payment amount">' +
+      '<input type="date" data-paydate aria-label="Payment date">' +
+      '<button type="button" class="ghost small" data-act="addpay">Record payment</button></div>' +
+      '</details>';
   }
 
   function renderFees(proj) {
@@ -263,11 +297,25 @@
       var results = PP.checkPermits({ jobType: proj.jobType, locationType: proj.locationType });
       var next = PP.nextProjectAction(results, proj.permits);
       $('nextAction').innerHTML = '<span class="flag">Next</span><span>' + esc(next) + '</span>';
+      renderReadiness(proj, results);
       renderDeadlines(proj);
       renderPermits(proj, results);
       renderPrintSummary(proj);
       $('coverNote').value = proj.coverNote || '';
     }
+  }
+
+  // ---------- second sweep: readiness (cleared-to-start) ----------
+  function renderReadiness(proj, results) {
+    var r = PP.projectReadiness(results, proj.permits, todayStr());
+    var box = $('readinessLine');
+    box.style.display = 'flex';
+    box.className = 'alert ' + (r.ready ? 'ready' : 'waiting');
+    box.innerHTML = '<span class="flag">' + (r.ready ? 'Go' : 'Hold') + '</span><span><strong>' +
+      esc(r.summary) + '</strong>' +
+      (r.ready ? '' : '<br>' + r.blockers.map(function (b) {
+        return esc(b.name) + ' — ' + esc(b.eta);
+      }).join('<br>')) + '</span>';
   }
 
   // ---------- upcoming deadlines ----------
@@ -442,6 +490,21 @@
       var computed = PP.approvalExpiry(st.approvedDate, def && def.validityDays);
       if (computed) { st.expiryDate = computed; flash('checkMsg', 'Expiry set to ' + computed + ' from approval date.'); }
       else { flash('checkMsg', 'Could not compute expiry — check the approval date.'); }
+    } else if (act === 'addinsp') {
+      var cardEl = btn.closest('.permit');
+      PP.addInspection(st, {
+        date: (cardEl.querySelector('[data-insdate]') || {}).value || '',
+        kind: (cardEl.querySelector('[data-inskind]') || {}).value || '',
+        outcome: (cardEl.querySelector('[data-insoutcome]') || {}).value || 'scheduled',
+        note: (cardEl.querySelector('[data-insnote]') || {}).value || ''
+      });
+    } else if (act === 'delinsp') {
+      PP.removeInspection(st, btn.getAttribute('data-insp'));
+    } else if (act === 'addpay') {
+      var cardPay = btn.closest('.permit');
+      PP.addPayment(st, (cardPay.querySelector('[data-payamt]') || {}).value, (cardPay.querySelector('[data-paydate]') || {}).value);
+    } else if (act === 'delpay') {
+      PP.removePayment(st, btn.getAttribute('data-pay'));
     }
     save();
     renderPermits(proj);

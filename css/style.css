@@ -284,3 +284,13 @@ footer .center { text-align: center; }
   .card.dossier:first-of-type { margin-top: 2rem; }
   .permit-meta { gap: .6rem; }
 }
+
+/* ---------- second sweep: inspections, payments, readiness ---------- */
+.insp-list, .pay-list { list-style: none; margin: 0 0 6px; padding: 0; }
+.insp-list li, .pay-list li { display: flex; justify-content: space-between; align-items: flex-start; gap: .6rem; padding: .45rem 0; border-bottom: 1px solid var(--line, #e5e5e5); font-size: .9rem; }
+.insp.passed em { color: var(--good, #4d7c0f); font-style: normal; font-weight: 600; }
+.insp.failed em { color: var(--bad, #b3261e); font-style: normal; font-weight: 600; }
+.alert.ready { background: #eef4e4; border-color: #c9d8ae; color: #3d521f; margin: .8rem 0; }
+.alert.ready .flag { background: var(--good, #4d7c0f); }
+.alert.waiting { background: #fdf6e3; border-color: #e8d9a8; color: #6b5518; margin: .8rem 0; }
+.alert.waiting .flag { background: var(--warn, #b45309); }

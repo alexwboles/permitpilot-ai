@@ -549,6 +549,121 @@
     return d.label + ' — ' + when + ' (' + d.date + ')';
   }
 
+  /* ---------- second sweep: inspections, payments, readiness ---------------------
+   * Inspections: schedule/log an inspection per permit state.
+   * Payments: record fee payments against the low/high estimate.
+   * Readiness: earliest cleared-to-start view with blockers + ETAs.
+   */
+  function _uid2(prefix) {
+    return prefix + '_' + Date.now().toString(36) + '_' + Math.floor(Math.random() * 1e6).toString(36);
+  }
+
+  var INSPECTION_OUTCOMES = ['scheduled', 'passed', 'failed', 'cancelled'];
+
+  function addInspection(state, info) {
+    info = info || {};
+    state.inspections = state.inspections || [];
+    var oc = INSPECTION_OUTCOMES.indexOf(info.outcome) !== -1 ? info.outcome : 'scheduled';
+    var rec = {
+      id: _uid2('insp'),
+      date: info.date || '',
+      kind: String(info.kind || '').trim().slice(0, 120),
+      outcome: oc,
+      note: String(info.note || '').trim().slice(0, 500)
+    };
+    state.inspections.push(rec);
+    return rec;
+  }
+  function removeInspection(state, id) {
+    state.inspections = (state.inspections || []).filter(function (x) { return x.id !== id; });
+  }
+  function inspectionSummary(state) {
+    var list = (state.inspections || []).slice().sort(function (a, b) {
+      return a.date < b.date ? -1 : a.date > b.date ? 1 : 0;
+    });
+    var upcoming = list.filter(function (x) { return x.outcome === 'scheduled'; });
+    var lastDone = null;
+    for (var i = list.length - 1; i >= 0; i--) {
+      if (list[i].outcome === 'passed' || list[i].outcome === 'failed') { lastDone = list[i]; break; }
+    }
+    return { count: list.length, list: list, upcoming: upcoming, lastDone: lastDone };
+  }
+
+  function addPayment(state, amount, date) {
+    state.payments = state.payments || [];
+    var rec = {
+      id: _uid2('pay'),
+      amount: Math.max(0, Number(amount) || 0),
+      date: date || ''
+    };
+    state.payments.push(rec);
+    return rec;
+  }
+  function removePayment(state, id) {
+    state.payments = (state.payments || []).filter(function (x) { return x.id !== id; });
+  }
+  function paymentsTotal(state) {
+    return (state.payments || []).reduce(function (s, p) { return s + (Number(p.amount) || 0); }, 0);
+  }
+  function feeBalance(state) {
+    var paid = paymentsTotal(state);
+    var low = Math.max(0, Number(state.feeLow) || 0);
+    var high = Math.max(0, Number(state.feeHigh) || 0);
+    return {
+      paid: paid, low: low, high: high,
+      remainingLow: Math.max(0, low - paid),
+      remainingHigh: Math.max(0, high - paid)
+    };
+  }
+
+  function _addDaysISO(iso, n) {
+    if (!iso) return '';
+    var parts = iso.split('-').map(Number);
+    var d = new Date(parts[0], parts[1] - 1, parts[2]);
+    d.setDate(d.getDate() + n);
+    var m = d.getMonth() + 1, day = d.getDate();
+    return d.getFullYear() + '-' + (m < 10 ? '0' : '') + m + '-' + (day < 10 ? '0' : '') + day;
+  }
+
+  /* Readiness: which permits block a cleared-to-start, with ETA text. */
+  function projectReadiness(checkResults, permitStates, todayStr) {
+    var rel = (checkResults || []).filter(function (r) { return r.needed !== 'unlikely'; });
+    var blockers = [];
+    rel.forEach(function (r) {
+      var st = permitStates[r.permitId] || {};
+      if (st.status === 'approved') return;
+      var def = permitById(r.permitId) || {};
+      var name = def.name || r.permitId;
+      var eta = '';
+      if (st.status === 'applied' && st.appliedDate && def.typicalReviewDays) {
+        eta = 'est. cleared by ' + _addDaysISO(st.appliedDate, def.typicalReviewDays);
+      } else if (st.status === 'not-started' || !st.status) {
+        eta = 'not applied yet';
+      } else {
+        eta = 'status: ' + String(st.status).replace('-', ' ');
+      }
+      blockers.push({ permitId: r.permitId, name: name, eta: eta });
+    });
+    return {
+      ready: blockers.length === 0,
+      blockerCount: blockers.length,
+      blockers: blockers,
+      summary: blockers.length === 0
+        ? 'Cleared to start — every relevant permit is approved.'
+        : 'Waiting on ' + blockers.length + ' permit' + (blockers.length === 1 ? '' : 's') + ' before you are cleared to start.'
+    };
+  }
+
+  PP.INSPECTION_OUTCOMES = INSPECTION_OUTCOMES;
+  PP.addInspection = addInspection;
+  PP.removeInspection = removeInspection;
+  PP.inspectionSummary = inspectionSummary;
+  PP.addPayment = addPayment;
+  PP.removePayment = removePayment;
+  PP.paymentsTotal = paymentsTotal;
+  PP.feeBalance = feeBalance;
+  PP.projectReadiness = projectReadiness;
+
   PP.JOB_TYPES = JOB_TYPES;
   PP.LOCATION_TYPES = LOCATION_TYPES;
   PP.PERMITS = PERMITS;

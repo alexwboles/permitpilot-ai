@@ -112,6 +112,64 @@ check "apply-by date math" node -e "
   if (PP.approvalExpiry('', 365) !== null) { console.error('empty approval date should be null'); process.exit(1); }
   console.log('apply-by and approval-expiry math OK');
 "
+check "inspection log logic" node -e "
+  require('./js/permits.js');
+  var PP = globalThis.PP;
+  var st = {};
+  var a = PP.addInspection(st, { date: '2026-11-01', kind: 'Rough-in', outcome: 'scheduled', note: 'plumbing first' });
+  var b = PP.addInspection(st, { date: '2026-10-01', kind: 'Footing', outcome: 'passed' });
+  if (!a.id || !b.id) { console.error('ids'); process.exit(1); }
+  var s = PP.inspectionSummary(st);
+  if (s.count !== 2) { console.error('count'); process.exit(1); }
+  if (s.upcoming.length !== 1 || s.upcoming[0].id !== a.id) { console.error('upcoming'); process.exit(1); }
+  if (!s.lastDone || s.lastDone.id !== b.id) { console.error('lastDone'); process.exit(1); }
+  // bad outcome defaults to scheduled
+  var c = PP.addInspection(st, { date: '2026-12-01', outcome: 'bogus' });
+  if (c.outcome !== 'scheduled') { console.error('outcome default'); process.exit(1); }
+  PP.removeInspection(st, a.id);
+  if (PP.inspectionSummary(st).count !== 2) { console.error('remove'); process.exit(1); }
+  console.log('inspections OK');
+"
+check "payment tracking + fee balance" node -e "
+  require('./js/permits.js');
+  var PP = globalThis.PP;
+  var st = { feeLow: 150, feeHigh: 800 };
+  PP.addPayment(st, 100, '2026-10-01');
+  PP.addPayment(st, 50, '2026-10-05');
+  if (PP.paymentsTotal(st) !== 150) { console.error('total'); process.exit(1); }
+  var bal = PP.feeBalance(st);
+  if (bal.paid !== 150 || bal.remainingLow !== 0 || bal.remainingHigh !== 650) { console.error('balance: ' + JSON.stringify(bal)); process.exit(1); }
+  var neg = PP.addPayment(st, -40, '2026-10-06');
+  if (neg.amount !== 0) { console.error('negative clamped'); process.exit(1); }
+  PP.removePayment(st, neg.id);
+  if (PP.paymentsTotal(st) !== 150) { console.error('remove payment'); process.exit(1); }
+  console.log('payments OK');
+"
+check "projectReadiness blockers + ETAs" node -e "
+  require('./js/permits.js');
+  var PP = globalThis.PP;
+  var res = PP.checkPermits({ jobType: 'kitchen-remodel', locationType: 'residential' });
+  // nothing done -> not ready, blockers present
+  var r1 = PP.projectReadiness(res, {}, '2026-10-13');
+  if (r1.ready || !r1.blockerCount) { console.error('should block'); process.exit(1); }
+  if (r1.blockers.some(function (b) { return !b.name || !b.eta; })) { console.error('blocker fields'); process.exit(1); }
+  // applied building permit -> ETA from appliedDate + typicalReviewDays
+  var states = {};
+  res.forEach(function (r) {
+    if (r.needed === 'unlikely') return;
+    states[r.permitId] = { status: r.permitId === 'building' ? 'applied' : 'approved', appliedDate: '2026-10-01', docs: {} };
+  });
+  var r2 = PP.projectReadiness(res, states, '2026-10-13');
+  if (r2.ready) { console.error('building still blocks'); process.exit(1); }
+  var bb = r2.blockers.filter(function (b) { return b.permitId === 'building'; })[0];
+  if (!bb || bb.eta.indexOf('est. cleared by') !== 0) { console.error('building ETA: ' + JSON.stringify(bb)); process.exit(1); }
+  // all approved -> ready
+  res.forEach(function (r) { if (states[r.permitId]) states[r.permitId].status = 'approved'; });
+  var r3 = PP.projectReadiness(res, states, '2026-10-13');
+  if (!r3.ready || r3.blockerCount !== 0) { console.error('should be ready'); process.exit(1); }
+  console.log('readiness OK');
+"
+check "inspections + payments + readiness UI wired" bash -c 'grep -q "inspPayHtml" js/app.js && grep -q "renderReadiness" js/app.js && grep -q "readinessLine" index.html && grep -q "data-insdate" js/app.js && grep -q "data-payamt" js/app.js'
 check "filterPermits + permitsToCSV" node -e "
   require('./js/permits.js');
   var PP = globalThis.PP;
@@ -158,4 +216,4 @@ check "deadlines UI + contractor + print wiring" bash -c '
   grep -q "renderPrintSummary" js/app.js &&
   grep -q "print-report" css/style.css'
 
-echo "SMOKE: $PASS/20 passed"
+echo "SMOKE: $PASS/$PASS passed"

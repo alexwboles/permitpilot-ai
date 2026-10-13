@@ -208,6 +208,42 @@ flow('next-action nudge walks the pipeline', function () {
   assert(/cleared to start work/.test(s3), 'all approved -> cleared, got: ' + s3);
 });
 
+// 15. Inspection log + payments end to end: log, pass, pay against estimate.
+flow('inspections logged and fee payments tracked', function () {
+  var st = { feeLow: 150, feeHigh: 800 };
+  PP.addInspection(st, { date: '2026-11-01', kind: 'Rough-in', outcome: 'scheduled' });
+  PP.addInspection(st, { date: '2026-11-05', kind: 'Rough-in', outcome: 'passed', note: 'all good' });
+  var s = PP.inspectionSummary(st);
+  assert(s.count === 2, 'two inspections');
+  assert(s.upcoming.length === 1 && s.upcoming[0].kind === 'Rough-in', 'one upcoming');
+  assert(s.lastDone.outcome === 'passed', 'last done passed');
+  PP.addPayment(st, 150, '2026-10-20');
+  var bal = PP.feeBalance(st);
+  assert(bal.paid === 150, 'paid 150');
+  assert(bal.remainingHigh === 650, '650 remaining of high estimate, got ' + bal.remainingHigh);
+});
+
+// 16. Readiness: blockers listed until every relevant permit is approved.
+flow('readiness forecast lists blockers with ETAs', function () {
+  var res = PP.checkPermits({ jobType: 'room-addition', locationType: 'residential' });
+  var r0 = PP.projectReadiness(res, {}, '2026-10-13');
+  assert(!r0.ready, 'empty project not ready');
+  assert(r0.blockerCount > 0, 'blockers exist');
+  assert(/Waiting on/.test(r0.summary), 'plain-language summary: ' + r0.summary);
+  var states = {};
+  res.forEach(function (r) {
+    if (r.needed === 'unlikely') return;
+    states[r.permitId] = { status: 'applied', appliedDate: '2026-09-20' };
+  });
+  var r1 = PP.projectReadiness(res, states, '2026-10-13');
+  assert(!r1.ready, 'applied-only not ready');
+  var bld = r1.blockers.filter(function (b) { return b.permitId === 'building'; })[0];
+  assert(bld && /^est\. cleared by \d{4}-\d{2}-\d{2}$/.test(bld.eta), 'building ETA: ' + JSON.stringify(bld));
+  res.forEach(function (r) { if (states[r.permitId]) states[r.permitId].status = 'approved'; });
+  var r2 = PP.projectReadiness(res, states, '2026-10-13');
+  assert(r2.ready && /Cleared to start/.test(r2.summary), 'ready when all approved');
+});
+
 if (failures) { console.log('E2E: ' + failures + ' flow(s) FAILED'); process.exit(1); }
-console.log('E2E: 14/14 flows passed');
+console.log('E2E: 16/16 flows passed');
 EOF
